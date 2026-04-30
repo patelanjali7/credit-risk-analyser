@@ -54,6 +54,10 @@ MANIFEST
 # Model Files — exclude unused benchmark model (11MB), keep production artifacts
 rf_model.pkl
 
+# MLflow local tracking — generated, not source code
+mlflow.db
+mlruns/
+
 # Testing
 .pytest_cache/
 .coverage
