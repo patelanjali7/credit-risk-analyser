@@ -1,0 +1,4 @@
+Model,AUC,Recall,Precision,F1,FN (missed defaults),FP (false alarms),TP (caught defaults),Train time (s),Inference (ms/rec)
+Logistic Regression (baseline),0.8811,0.8263,0.5054,0.6272,247,1150,1175,0.16,0.001
+XGBoost (Optuna tuned),0.9503,0.8368,0.723,0.7757,232,456,1190,1.21,0.0038
+LightGBM (Optuna tuned),0.9505,0.8439,0.7344,0.7853,222,434,1200,0.76,0.006
