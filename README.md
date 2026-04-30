@@ -227,17 +227,7 @@ Four live what-if charts (income, loan amount, credit history, employment length
 - Summary metrics (Approved / Rejected / Review counts).
 - Download scored results as **CSV** or **HTML report** (open in browser → print as PDF).
 
-### Themes
 
-Three switchable display modes (sidebar toggle):
-
-| Theme | Description |
-|---|---|
-| ☀️ Light | Clean white/navy — default |
-| 🌙 Dark | Slate dark background — low-eye-strain |
-| ⚫ Contrast | Black/yellow — WCAG high-contrast accessibility |
-
-All UI elements, form inputs, dropdowns, chart modebar icons, and buttons adapt per theme.
 
 ---
 
@@ -289,7 +279,7 @@ pip install -r requirements.txt
 
 # 2. Launch
 streamlit run app.py
-# Opens at http://localhost:8501
+
 ```
 
 > VS Code users: select the Python 3.9 interpreter (the one with the project packages installed).
