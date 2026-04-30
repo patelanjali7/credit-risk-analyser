@@ -12,18 +12,21 @@ Financial institutions face two interlinked challenges:
 1. **Will this borrower default?** — Binary classification on repayment behaviour.  
 2. **Should we approve the loan, and on what terms?** — Business decision combining PD score, income stress tests, and portfolio risk policy.
 
-Regulatory frameworks (Basel II/III) require credit decisions to be *transparent and explainable*. This project implements a full ML pipeline that satisfies both requirements.
+Regulatory frameworks (Basel II/III) require credit decisions to be *transparent and explainable*. This project implements a full ML pipeline that satisfies both requirements — and includes a challenger model benchmarking suite to validate the production model choice.
 
 ---
 
 ## Key Results
 
-| Metric | Original Model | Enhanced Model (v3) |
-|---|---|---|
-| AUC | 0.8719 | **0.8805** |
-| Default Recall @ threshold 0.40 | 78% | **83%** |
-| Missed defaults (FN) | 309 | **247** |
-| Features | 24 | **28** (+ 4 engineered) |
+| Metric | Logistic Regression (Production) | XGBoost (Challenger) | LightGBM (Challenger) |
+|---|---|---|---|
+| AUC | 0.8811 | 0.9503 | **0.9505** |
+| Default Recall @ 0.40 | 83% | 83% | **83%** |
+| Missed Defaults (FN) | 247 | 232 | **222** |
+| Explainability | ✅ Exact coefficients | ⚠ SHAP approximation | ⚠ SHAP approximation |
+| Basel III compliant | ✅ Yes | ❌ No | ❌ No |
+
+**Production model: Logistic Regression** — despite lower AUC, it is the only option with exact, auditable feature attribution required under Basel III Internal Ratings-Based approach. LightGBM is tracked in staging via MLflow for future promotion once regulatory guidance on ML models matures.
 
 ---
 
@@ -85,9 +88,10 @@ credit_risk_dataset.csv  (32,581 records)
 │  └─ Feature contributions  (coef × scaled val)  │
 └──────────────────────────────────────────────────┘
                │
-               ▼
-   Streamlit App  (3 tabs)
-   · New Application  · Sensitivity Analysis  · Bulk Scoring
+        ┌──────┴──────┐
+        ▼             ▼
+   Streamlit App   FastAPI Server
+   (3 tabs)        /predict  /predict/batch
 ```
 
 ---
@@ -131,7 +135,7 @@ Four new features constructed from domain reasoning and validated by correlation
 
 ## Modelling
 
-### Why Logistic Regression?
+### Production Model: Logistic Regression
 
 | Criterion | Logistic Regression | Random Forest / GBM |
 |---|---|---|
@@ -143,7 +147,7 @@ Four new features constructed from domain reasoning and validated by correlation
 
 ### Threshold Optimisation (Asymmetric Loss)
 
-Missing a defaulter (FN) costs the full principal. Rejecting a good borrower (FP) costs only foregone interest. This asymmetric loss drives the threshold below 0.5:
+Missing a defaulter (FN) costs the full principal. Rejecting a good borrower (FP) costs only foregone interest.
 
 | Threshold | Recall | Precision | Missed Defaults (FN) |
 |---|---|---|---|
@@ -162,8 +166,6 @@ Missing a defaulter (FN) costs the full principal. Rejecting a good borrower (FP
     accuracy                           0.79      6,517
 ```
 
-Confusion matrix:
-
 |  | Predicted: No Default | Predicted: Default |
 |---|---|---|
 | **Actual: No Default** | 3,944 (TN) | 1,151 (FP) |
@@ -171,7 +173,71 @@ Confusion matrix:
 
 ---
 
-## Credit Scoring  (PDO=50 Scorecard)
+## Model Benchmarking
+
+`model_benchmark.ipynb` runs a full challenger comparison against Logistic Regression:
+
+- **XGBoost** — Optuna-tuned (60 trials, TPE sampler, StratifiedKFold CV), `scale_pos_weight` for class imbalance
+- **LightGBM** — Optuna-tuned (60 trials), GBDT boosting, leaf-wise growth
+
+All models use the **identical pipeline** (same cleaning, same 5 engineered features, same 80/20 split, same threshold=0.40) to ensure fair comparison.
+
+| Model | AUC | Recall | Precision | FN | Source |
+|---|---|---|---|---|---|
+| Logistic Regression | 0.8811 | 83% | 51% | 247 | Production |
+| XGBoost (tuned) | 0.9503 | 83% | ~56% | 232 | Staging |
+| LightGBM (tuned) | **0.9505** | 83% | ~57% | **222** | Staging |
+
+SHAP analysis included: summary plot, bar plot, and waterfall for a high-risk applicant.
+
+**Outputs saved:** `xgb_benchmark_model.pkl`, `lgb_benchmark_model.pkl`, `benchmark_results.csv`, ROC/recall charts.
+
+---
+
+## MLflow Model Registry
+
+`mlflow_register.py` logs all three models to a local MLflow tracking server and registers them with aliases:
+
+| Model Registry Name | Alias | Status |
+|---|---|---|
+| `credit-risk-lr` | `@production` | Serving via FastAPI |
+| `credit-risk-xgb` | `@staging` | Challenger — tracked |
+| `credit-risk-lgb` | `@staging` | Best challenger — tracked |
+
+```bash
+# Register all models
+py -3.11 mlflow_register.py
+
+# Open MLflow UI
+py -3.11 -m mlflow ui --port 5000 --backend-store-uri sqlite:///mlflow.db
+```
+
+---
+
+## FastAPI Inference Server
+
+`api.py` provides a production-grade REST API that loads the `@production` model from MLflow registry:
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Liveness check — model name, version, loaded-at timestamp |
+| `/model/info` | GET | Active version, run ID, metrics from MLflow |
+| `/predict` | POST | Score a single applicant — returns PD, credit score, decision, DTI |
+| `/predict/batch` | POST | Score up to 500 applicants — returns portfolio summary |
+
+```bash
+# Start server
+py -3.11 -m uvicorn api:app --reload --port 8000
+
+# Interactive docs
+# Open http://localhost:8000/docs in your browser
+```
+
+The API auto-derives loan grade and interest rate from applicant signals — clients submit 8 fields, not 12.
+
+---
+
+## Credit Scoring (PDO=50 Scorecard)
 
 ```
 Score = 600 − (50 / ln 2) × ln(PD / (1 − PD))
@@ -204,8 +270,6 @@ Score = 600 − (50 / ln 2) × ln(PD / (1 − PD))
 
 ### Tab 1 — New Application
 
-A three-section form (Personal Information / Loan Request / Pre-Assessment Snapshot):
-
 - Loan grade and interest rate are **auto-derived** — users never input them directly.
 - Pre-assessment snapshot shows real-time DTI, grade, rate, EMI preview, and Rate×Income-Stress.
 - On submit: PD gauge, credit score gauge, feature contribution waterfall, EMI table (5 tenures), application summary, downloadable decision report.
@@ -213,21 +277,15 @@ A three-section form (Personal Information / Loan Request / Pre-Assessment Snaps
 
 ### Tab 2 — Sensitivity Analysis
 
-Four live what-if charts (income, loan amount, credit history, employment length):
-
+- Four live what-if charts: income, loan amount, credit history, employment length.
 - Grade and rate automatically update as income/loan amount change.
 - Approval threshold shown as a dashed reference line on each chart.
-- Powered by vectorised batch prediction for fast rendering.
 
 ### Tab 3 — Bulk Scoring
 
 - Download CSV template → upload filled CSV → batch-score all applications in one call.
-- Results table with PD, credit score, score band, and decision for every row.
 - **Portfolio analytics:** PD distribution histogram, decision breakdown donut, average PD by grade, risk concentration by PD band.
-- Summary metrics (Approved / Rejected / Review counts).
 - Download scored results as **CSV** or **HTML report** (open in browser → print as PDF).
-
-
 
 ---
 
@@ -250,39 +308,83 @@ Four live what-if charts (income, loan amount, credit history, employment length
 ```
 credit_risk/
 │
-├── app.py                          # Streamlit application (3-tab UI)
-├── prediction_helper.py            # Inference engine + feature engineering
+├── app.py                      # Streamlit application (3-tab UI)
+├── prediction_helper.py        # Inference engine + feature engineering
+├── api.py                      # FastAPI REST server (separate deployment)
 │
-├── credit_risk.ipynb               # EDA, baseline models, threshold analysis
-├── scorecard_model.ipynb           # WOE / IV credit scorecard analysis
+├── credit_risk.ipynb           # EDA, baseline models, threshold analysis
+├── scorecard_model.ipynb       # WOE / IV credit scorecard analysis
+├── model_benchmark.ipynb       # XGBoost + LightGBM challenger comparison + SHAP
 │
-├── credit_risk_dataset.csv         # Raw dataset (source of truth)
-├── credit_risk_cleaned.csv         # Post-cleaning snapshot
-├── credit_risk_with_pd.csv         # Dataset with PD scores appended
+├── mlflow_register.py          # Logs all 3 models to MLflow, sets aliases
 │
-├── logistic_model.pkl              # Production model (v3, with engineered features)
-├── scaler.pkl                      # StandardScaler (fit on training split)
-├── expected_columns.pkl            # Column order for inference alignment
+├── credit_risk_dataset.csv     # Raw dataset (32,581 records)
+├── credit_risk_cleaned.csv     # Post-cleaning snapshot
+├── credit_risk_with_pd.csv     # Dataset with PD scores appended
 │
-├── .streamlit/config.toml          # Theme configuration
-├── .github/copilot-instructions.md # AI coding agent instructions
-└── requirements.txt
+├── logistic_model.pkl          # Production model (LR v3)
+├── scaler.pkl                  # StandardScaler (fit on training split)
+├── expected_columns.pkl        # Column order for inference alignment
+├── xgb_benchmark_model.pkl     # XGBoost challenger (staging)
+├── lgb_benchmark_model.pkl     # LightGBM challenger (staging)
+│
+├── benchmark_results.csv       # Model comparison metrics
+│
+├── requirements.txt            # Streamlit inference deps only (Python 3.11)
+├── runtime.txt                 # Pins Python 3.11 for Streamlit Cloud
+│
+└── .streamlit/config.toml      # Theme configuration
 ```
 
 ---
 
 ## How to Run
 
+### Streamlit App
+
 ```bash
-# 1. Install dependencies
 pip install -r requirements.txt
-
-# 2. Launch
 streamlit run app.py
-
 ```
 
-> VS Code users: select the Python 3.9 interpreter (the one with the project packages installed).
+### FastAPI Server (local, separate from Streamlit)
+
+```bash
+# Install full deps including FastAPI + MLflow
+pip install fastapi uvicorn mlflow pydantic
+
+py -3.11 -m uvicorn api:app --reload --port 8000
+# Docs at http://localhost:8000/docs
+```
+
+### Model Benchmarking + MLflow
+
+```bash
+# Install training deps
+pip install xgboost lightgbm shap optuna mlflow
+
+# Run benchmark notebook first, then register models
+py -3.11 mlflow_register.py
+
+# View MLflow UI
+py -3.11 -m mlflow ui --port 5000 --backend-store-uri sqlite:///mlflow.db
+```
+
+---
+
+## Deployment
+
+### Streamlit Cloud
+
+The app is deployed at [share.streamlit.io](https://share.streamlit.io) directly from the `main` branch.
+
+- **Python version:** pinned to 3.11 via `runtime.txt`
+- **Dependencies:** `requirements.txt` contains only the 7 inference libraries needed — no training or API deps
+- Streamlit Cloud runs `app.py` only; `api.py` is not served there
+
+### FastAPI (separate hosting)
+
+`api.py` requires its own server (Railway, Render, or Fly.io). It is included in this repository to demonstrate production API design and is not part of the Streamlit Cloud deployment.
 
 ---
 
@@ -291,13 +393,17 @@ streamlit run app.py
 | Layer | Tool |
 |---|---|
 | Data & feature engineering | pandas, NumPy |
-| Modelling | scikit-learn — LogisticRegression, StandardScaler |
+| Production model | scikit-learn — LogisticRegression, StandardScaler |
+| Challenger models | XGBoost, LightGBM |
+| Hyperparameter tuning | Optuna (TPE, StratifiedKFold, 60 trials) |
+| Model explainability | SHAP (TreeExplainer) |
+| Experiment tracking | MLflow (SQLite backend, Model Registry) |
 | Credit scorecard | WOE/IV (custom), PDO-50 formula |
 | Visualisation | Plotly |
-| Hyperparameter tuning | Optuna |
-| Deployment | Streamlit |
+| Streamlit app | Streamlit |
+| REST API | FastAPI + Uvicorn |
 | Model persistence | joblib |
 
 ---
 
-*Built to demonstrate end-to-end credit risk modelling — from raw data to a production-grade scoring system with a business decision layer, regulatory-compliant explainability, and an interactive UI.*
+*Built to demonstrate end-to-end credit risk modelling — from raw data to a production-grade scoring system with challenger benchmarking, MLflow tracking, a REST API, and a Basel III-compliant Streamlit UI.*
