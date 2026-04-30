@@ -1,0 +1,22 @@
+artifact_path: file:///D:/Learning/upskill/credit_risk - Copy/mlruns/1/models/m-ea94a2c43c194721aef8cad949d66188/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.9.13
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.4.2
+mlflow_version: 3.1.4
+model_id: m-ea94a2c43c194721aef8cad949d66188
+model_size_bytes: 944
+model_uuid: m-ea94a2c43c194721aef8cad949d66188
+prompts: null
+run_id: bdced03b7df04553bb761bbd01017475
+utc_time_created: '2026-04-30 20:11:05.167425'

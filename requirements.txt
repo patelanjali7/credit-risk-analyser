@@ -21,3 +21,11 @@ optuna==3.5.0
 
 # App deployment
 streamlit==1.35.0
+
+# API serving
+fastapi
+uvicorn[standard]
+pydantic>=2.0
+
+# Experiment tracking & model registry
+mlflow

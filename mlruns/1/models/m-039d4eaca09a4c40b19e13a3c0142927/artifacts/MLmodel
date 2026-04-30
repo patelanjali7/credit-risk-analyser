@@ -1,0 +1,22 @@
+artifact_path: file:///D:/Learning/upskill/credit_risk - Copy/mlruns/1/models/m-039d4eaca09a4c40b19e13a3c0142927/artifacts
+flavors:
+  python_function:
+    data: model.xgb
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.9.13
+  xgboost:
+    code: null
+    data: model.xgb
+    model_class: xgboost.sklearn.XGBClassifier
+    model_format: xgb
+    xgb_version: 2.1.4
+mlflow_version: 3.1.4
+model_id: m-039d4eaca09a4c40b19e13a3c0142927
+model_size_bytes: 1208290
+model_uuid: m-039d4eaca09a4c40b19e13a3c0142927
+prompts: null
+run_id: 10e3ae0458a34902a8226124bfd1530d
+utc_time_created: '2026-04-30 20:11:17.661600'

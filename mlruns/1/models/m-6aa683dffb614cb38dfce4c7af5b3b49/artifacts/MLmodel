@@ -1,0 +1,21 @@
+artifact_path: file:///D:/Learning/upskill/credit_risk - Copy/mlruns/1/models/m-6aa683dffb614cb38dfce4c7af5b3b49/artifacts
+flavors:
+  lightgbm:
+    code: null
+    data: model.pkl
+    lgb_version: 4.6.0
+    model_class: lightgbm.sklearn.LGBMClassifier
+  python_function:
+    data: model.pkl
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.lightgbm
+    python_version: 3.9.13
+mlflow_version: 3.1.4
+model_id: m-6aa683dffb614cb38dfce4c7af5b3b49
+model_size_bytes: 2012936
+model_uuid: m-6aa683dffb614cb38dfce4c7af5b3b49
+prompts: null
+run_id: 5a28cfe24ecb4e1c91d48a2a9c07dbbb
+utc_time_created: '2026-04-30 20:11:24.603794'

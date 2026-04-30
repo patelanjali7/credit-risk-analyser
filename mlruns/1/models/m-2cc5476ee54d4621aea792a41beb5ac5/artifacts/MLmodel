@@ -1,0 +1,14 @@
+artifact_path: file:///D:/Learning/upskill/credit_risk - Copy/mlruns/1/models/m-2cc5476ee54d4621aea792a41beb5ac5/artifacts
+flavors:
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.4.2
+mlflow_version: 3.1.4
+model_id: m-2cc5476ee54d4621aea792a41beb5ac5
+model_size_bytes: 1789
+model_uuid: m-2cc5476ee54d4621aea792a41beb5ac5
+prompts: null
+run_id: bdced03b7df04553bb761bbd01017475
+utc_time_created: '2026-04-30 20:11:11.665701'
